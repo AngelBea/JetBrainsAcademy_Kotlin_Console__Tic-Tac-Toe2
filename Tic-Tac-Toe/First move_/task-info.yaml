@@ -1,0 +1,420 @@
+type: edu
+custom_name: First move!
+files:
+- name: src/tictactoe/Main.kt
+  visible: true
+  text: |-
+    package tictactoe
+
+    fun main() {
+        // write your code here
+    }
+  learner_created: false
+- name: test/TicTacToeTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.exception.outcomes.WrongAnswer;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testcase.TestCase;
+
+    import java.util.ArrayList;
+    import java.util.List;
+    import java.util.stream.Collectors;
+
+    enum FieldState {
+        X, O, FREE;
+
+        static FieldState get(char symbol) {
+            switch (symbol) {
+                case 'X': return X;
+                case 'O': return O;
+                case ' ':
+                case '_':
+                    return FREE;
+                default: return null;
+            }
+        }
+    }
+
+    class TicTacToeField {
+
+        final FieldState[][] field;
+
+        TicTacToeField(FieldState[][] field) {
+            this.field = new FieldState[3][3];
+            for (int row = 0; row < 3; row++) {
+                System.arraycopy(field[row], 0, this.field[row], 0, 3);
+            }
+        }
+
+        TicTacToeField(String str) {
+            field = new FieldState[3][3];
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    field[row][col] = FieldState.get(str.charAt(row * 3 + col));
+                }
+            }
+        }
+
+        boolean equalTo(TicTacToeField other) {
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (field[i][j] != other.field[i][j]) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        boolean hasNextAs(TicTacToeField other) {
+            boolean improved = false;
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (field[i][j] != other.field[i][j]) {
+                        if (field[i][j] == FieldState.FREE && !improved) {
+                            improved = true;
+                        }
+                        else {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return improved;
+        }
+
+        boolean isCloseTo(TicTacToeField other) {
+            return equalTo(other)
+                || hasNextAs(other)
+                || other.hasNextAs(this);
+        }
+
+        static TicTacToeField parse(String fieldStr) {
+
+            try {
+                List<String> lines = fieldStr
+                    .lines()
+                    .map(String::strip)
+                    .filter(e ->
+                        e.startsWith("|")
+                            && e.endsWith("|"))
+                    .collect(Collectors.toList());
+
+                for (String line : lines) {
+                    if (line.length() != 9) {
+                        throw new WrongAnswer("Line of Tic-Tac-Toe " +
+                            "field should be 9 characters long\n" +
+                            "found " + line.length() + " characters in \"" + line + "\"");
+                    }
+                    for (char c : line.toCharArray()) {
+                        if (c != 'X'
+                            && c != 'O'
+                            && c != '|'
+                            && c != ' '
+                            && c != '_') {
+                            return null;
+                        }
+                    }
+                }
+
+                FieldState[][] field = new FieldState[3][3];
+
+                int y = 0;
+                for (String line : lines) {
+                    char[] cols = new char[] {
+                        line.charAt(2),
+                        line.charAt(4),
+                        line.charAt(6)
+                    };
+
+                    int x = 0;
+                    for (char c : cols) {
+                        FieldState state = FieldState.get(c);
+                        if (state == null) {
+                            return null;
+                        }
+                        field[y][x] = state;
+                        x++;
+                    }
+                    y++;
+                }
+
+                return new TicTacToeField(field);
+            } catch (Exception ex) {
+                return null;
+            }
+        }
+
+
+        static List<TicTacToeField> parseAll(String output) {
+            List<TicTacToeField> fields = new ArrayList<>();
+
+            List<String> lines = output
+                .lines()
+                .map(String::strip)
+                .filter(e -> e.length() > 0)
+                .collect(Collectors.toList());
+
+            String candidateField = "";
+            boolean insideField = false;
+            for (String line : lines) {
+                if (line.contains("----") && !insideField) {
+                    insideField = true;
+                    candidateField = "";
+                } else if (line.contains("----") && insideField) {
+                    TicTacToeField field = TicTacToeField.parse(candidateField);
+                    if (field != null) {
+                        fields.add(field);
+                    }
+                    insideField = false;
+                }
+
+                if (insideField && line.startsWith("|")) {
+                    candidateField += line + "\n";
+                }
+            }
+
+            return fields;
+        }
+
+    }
+
+
+    class Clue {
+        int x, y;
+        String input;
+        Clue(String input, int x, int y) {
+            this.input = input;
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    public class TicTacToeTest extends StageTest<Clue> {
+
+        static final String[] inputs = new String[] {
+            "1 1", "1 2", "1 3",
+            "2 1", "2 2", "2 3",
+            "3 1", "3 2", "3 3"
+        };
+
+        String iterateCells(String initial) {
+            int index = -1;
+            for (int i = 0; i < inputs.length; i++) {
+                if (initial.equals(inputs[i])) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index == -1) {
+                return "";
+            }
+            String fullInput = "";
+            for (int i = index; i < index + 9; i++) {
+                fullInput += inputs[i % inputs.length] + "\n";
+            }
+            return fullInput;
+        }
+
+        @Override
+        public List<TestCase<Clue>> generate() {
+
+            List<TestCase<Clue>> tests = new ArrayList<>();
+
+            int i = 0;
+
+            for (String startField : new String[] {
+                "_XXOO_OX_",
+                "_________",
+                "X_X_O____"
+            }) {
+
+                for (String input : inputs) {
+                    String fullInput = iterateCells(input);
+
+                    String[] strNums = input.split("\\s+");
+                    int x = Integer.parseInt(strNums[0]);
+                    int y = Integer.parseInt(strNums[1]);
+
+                    if (i % 2 == 1) {
+                        // mix with incorrect data
+                        fullInput = "4 " + i + "\n" + fullInput;
+                    }
+
+                    tests.add(new TestCase<Clue>()
+                        .setInput(startField + "\n" + fullInput)
+                        .setAttach(new Clue(startField, x, y)));
+
+                    i++;
+                }
+
+            }
+
+            return tests;
+        }
+
+        @Override
+        public CheckResult check(String reply, Clue clue) {
+
+            List<TicTacToeField> fields = TicTacToeField.parseAll(reply);
+
+            if (fields.size() != 2) {
+                return new CheckResult(false,
+                    "Can't find two fields inside output");
+            }
+
+            TicTacToeField curr = fields.get(0);
+            TicTacToeField next = fields.get(1);
+
+            TicTacToeField correctCurr = new TicTacToeField(clue.input);
+            TicTacToeField correctNext = new TicTacToeField(correctCurr.field);
+
+            String[] numInputs = iterateCells(clue.x + " " + clue.y).split("\n");
+            for (String input : numInputs) {
+                String[] strNums = input.split(" ");
+                int x = Integer.parseInt(strNums[0]);
+                int y = Integer.parseInt(strNums[1]);
+                if (correctNext.field[x - 1][y - 1] == FieldState.FREE) {
+                    correctNext.field[x - 1][y - 1] = FieldState.X;
+                    break;
+                }
+            }
+
+            if (!curr.equalTo(correctCurr)) {
+                return new CheckResult(false,
+                    "The first field is not equal to the input field");
+            }
+
+            if (!next.equalTo(correctNext)) {
+                return new CheckResult(false,
+                    "The first field is correct, but the second is not");
+            }
+
+            return CheckResult.correct();
+        }
+    }
+  learner_created: false
+- name: src/tictactoe/TicTactToeBoard.kt
+  visible: true
+  text: |-
+    package tictactoe
+
+    import kotlin.math.abs
+
+
+    class TicTactToeBoard(var cells: String) {
+        private val board = "[OX_]{3}".toRegex().findAll(cells).map { it.value.toCharArray() }.toList()
+
+        fun printBoard() {
+            LINE_HYPHEN.let(::println)
+            board.map { it.joinToString(" ") }.map(LINE_PLAY).forEach(::println)
+            LINE_HYPHEN.let(::println)
+        }
+
+        fun putTo(y: Int, x: Int, token: Char) {
+            val yArray = y - 1
+            val xArray = x - 1
+            var absNum = y * (board.size) + xArray
+            absNum--
+
+            board[yArray][xArray] = token
+            cells = board.joinToString("") { it.joinToString("") }
+        }
+
+        fun whatsUpInTheField() {
+            val isMoreThanOneDifference = abs(cells.count { it == PLAYER_ONE_TOKEN } - cells.count { it == PLAYER_TWO_TOKEN }) > 1
+            val areEmptyFields = cells.count { it == EMPTY_TOKEN } > 0
+            val isXInARow = isInARow(PLAYER_ONE_TOKEN)
+            val isOInARow = isInARow(PLAYER_TWO_TOKEN)
+
+            if (isMoreThanOneDifference){
+                MSG_IMPOSSIBLE.let(::println)
+            }else if (isXInARow){
+                if (isOInARow){
+                    MSG_IMPOSSIBLE.let(::println)
+                }else{
+                    MSG_X_WINS.let(::println)
+                }
+            }else if (isOInARow){
+                if (isXInARow){
+                    MSG_IMPOSSIBLE.let(::println)
+                }else{
+                    MSG_O_WINS.let(::println)
+                }
+            }else if(areEmptyFields){
+                MSG_NOT_FINISH.let(::println)
+            }else if(!areEmptyFields){
+                MSG_DRAW.let(::println)
+            }
+        }
+
+        fun isInARow(token: Char): Boolean {
+            val horizontalSearching = board.any { line -> line.all { it == token } }
+            var verticalSearching = false
+            var diagonalSearching = false
+            var inverseDiagonalSearching = false
+
+            for (column in 0 until 3) {
+                var line = ""
+                for (row in board.indices) {
+                    line += board[row][column]
+                    verticalSearching = line.all { it == token } && line.length == board[row].size
+                }
+
+                if (verticalSearching) break
+            }
+
+            for (diagonal in board.indices) {
+                var line = ""
+                line += board[diagonal][diagonal]
+                diagonalSearching = line.all { it == token } && line.length == board.size
+
+                if (diagonalSearching) break
+            }
+
+            var line = ""
+            for (row in board.indices) {
+                for (column in board[row].size.minus(1) downTo 0) {
+                    if (row + column == board.size.minus(1)) line += board[row][column]
+                    inverseDiagonalSearching = line.all { it == token } && line.length == board[row].size
+                }
+
+                if (inverseDiagonalSearching) break
+            }
+
+            return horizontalSearching || verticalSearching || diagonalSearching || inverseDiagonalSearching
+        }
+
+
+    }
+  learner_created: true
+- name: src/tictactoe/Constants.kt
+  visible: true
+  text: |-
+    package tictactoe
+
+    const val PLAYER_ONE_TOKEN = 'X'
+    const val PLAYER_TWO_TOKEN = 'O'
+    const val EMPTY_TOKEN = '_'
+    const val ENTER_CELLS = "Enter cells:"
+    val LINE_HYPHEN = "-".repeat(9)
+    val LINE_PLAY = {line: String -> "| $line |"}
+
+    //Messages
+    const val MSG_IMPOSSIBLE = "Impossible"
+    const val MSG_DRAW = "Draw"
+    const val MSG_X_WINS = "X wins"
+    const val MSG_O_WINS = "O wins"
+    const val MSG_NOT_FINISH = "Game not finished"
+  learner_created: true
+- name: src/tictactoe/Exceptions.kt
+  visible: true
+  learner_created: true
+feedback_link: https://hyperskill.org/projects/123/stages/657/implement#comment
+status: Solved
+feedback:
+  message: Congratulations!
+  time: Sun, 11 Jul 2021 14:02:15 UTC
+record: 4
